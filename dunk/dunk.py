@@ -22,6 +22,7 @@ DUNK_BACKGROUND = Color.from_rgb(red=26, green=30, blue=22)
 
 # TODO: Use rich pager here?
 
+
 def loop_first(values: Iterable[T]) -> Iterable[Tuple[bool, T]]:
     """Iterate and generate a tuple with a flag for first value."""
     iter_values = iter(values)
@@ -76,30 +77,42 @@ def main():
         elif patch.is_removed_file:
             additional_context += "[red]file was deleted[/]"
 
-        if is_first:
-            console.print()
+        console.print()
         console.rule(
             f"  [b]{patch.path}[/] ([green]{patch.added} additions[/], [red]{patch.removed} removals[/]) {additional_context}",
-            style="blue")
-
-        # TODO - keep track of source_lineno -> diff_lineno and same for target,
-        #  so that we can reconstruct unified diff
+            style="#45483d",
+            characters="▁",
+        )
 
         source_code = "".join(source_reconstructed)
         lexer = Syntax.guess_lexer(patch.path)
 
-        # A newly added comment
-
         for is_first_hunk, hunk in loop_first(patch):
             # Use difflib to examine differences between each link of the hunk
             # Target essentially means the additions/green text in the diff
-            target_line_range = (hunk.target_start, hunk.target_length + hunk.target_start - 1)
-            source_line_range = (hunk.source_start, hunk.source_length + hunk.source_start - 1)
+            target_line_range = (
+                hunk.target_start,
+                hunk.target_length + hunk.target_start - 1,
+            )
+            source_line_range = (
+                hunk.source_start,
+                hunk.source_length + hunk.source_start - 1,
+            )
 
-            source_syntax = Syntax(source_code, lexer=lexer, line_range=source_line_range, line_numbers=True,
-                                   indent_guides=True)
-            target_syntax = Syntax(target_code, lexer=lexer, line_range=target_line_range, line_numbers=True,
-                                   indent_guides=True)
+            source_syntax = Syntax(
+                source_code,
+                lexer=lexer,
+                line_range=source_line_range,
+                line_numbers=True,
+                indent_guides=True,
+            )
+            target_syntax = Syntax(
+                target_code,
+                lexer=lexer,
+                line_range=target_line_range,
+                line_numbers=True,
+                indent_guides=True,
+            )
 
             # Gather information on source which lines were added/removed, so we can highlight them
             source_removed_linenos = set()
@@ -122,7 +135,9 @@ def main():
             source_lineno_to_padding = {}
             target_lineno_to_padding = {}
 
-            first_source_context, first_target_context = next(iter(context_linenos), None)
+            first_source_context, first_target_context = next(
+                iter(context_linenos), (0, 0)
+            )
             current_delta = first_source_context - first_target_context
             for source_lineno, target_lineno in context_linenos:
                 delta = source_lineno - target_lineno
@@ -137,15 +152,27 @@ def main():
             # For inline diffing
             # if you have a contiguous streak of removal lines, followed by a contiguous streak of addition lines,
             # you can collect the removals into a string, collect the additions into a string, and diff two strings,
-            # to find the locations in the line where things differ
+            # to find the locations in the line where things differ ABC
 
-            source_syntax_lines: List[List[Segment]] = console.render_lines(source_syntax)
+            source_syntax_lines: List[List[Segment]] = console.render_lines(
+                source_syntax
+            )
             target_syntax_lines = console.render_lines(target_syntax)
 
-            highlighted_source_lines = highlight_lines_in_hunk(hunk.source_start, source_removed_linenos,
-                                                               source_syntax_lines, ColorTriplet(255, 0, 0), source_lineno_to_padding)
-            highlighted_target_lines = highlight_lines_in_hunk(hunk.target_start, target_added_linenos,
-                                                               target_syntax_lines, ColorTriplet(0, 255, 0), target_lineno_to_padding)
+            highlighted_source_lines = highlight_lines_in_hunk(
+                hunk.source_start,
+                source_removed_linenos,
+                source_syntax_lines,
+                ColorTriplet(255, 0, 0),
+                source_lineno_to_padding,
+            )
+            highlighted_target_lines = highlight_lines_in_hunk(
+                hunk.target_start,
+                target_added_linenos,
+                target_syntax_lines,
+                ColorTriplet(0, 255, 0),
+                target_lineno_to_padding,
+            )
 
             table = Table.grid()
             table.add_column(style="on #0d0f0b")
@@ -155,19 +182,35 @@ def main():
                 SegmentLines(highlighted_target_lines, new_lines=True),
             )
 
-            hunk_header = (f"[dim]@@[/] [red]-{hunk.source_start},{hunk.source_length}[/] "
-                           f"[green]+{hunk.target_start},{hunk.target_length}[/] "
-                           f"[dim]@@ {hunk.section_header or ''}[/]")
-            console.rule(hunk_header, characters="╲", style=Style.from_color(color=MONOKAI_BACKGROUND))
+            hunk_header_style = f"{MONOKAI_BACKGROUND.triplet.hex} on #0d0f0b"
+            hunk_header = (
+                f"[on #0d0f0b dim]@@ [red]-{hunk.source_start},{hunk.source_length}[/] "
+                f"[green]+{hunk.target_start},{hunk.target_length}[/] "
+                f"[dim]@@ {hunk.section_header or ''}[/]"
+            )
+            console.rule(hunk_header, characters="╲", style=hunk_header_style)
             console.print(table)
+        console.rule(style="#45483d", characters="▔")
 
 
-def highlight_lines_in_hunk(start_lineno, highlight_linenos, syntax_lines, blend_colour, lines_to_pad_above: Dict[int, int]):
+def highlight_lines_in_hunk(
+    start_lineno,
+    highlight_linenos,
+    syntax_lines,
+    blend_colour,
+    lines_to_pad_above: Dict[int, int],
+):
     highlighted_lines = []
     for line in syntax_lines:
         if len(line) > 0:
             text, style, control = line[0]
-            line[0] = Segment("▏", Style.from_color(color=MONOKAI_LIGHT_ACCENT, bgcolor=MONOKAI_BACKGROUND), control)
+            line[0] = Segment(
+                "▏",
+                Style.from_color(
+                    color=MONOKAI_LIGHT_ACCENT, bgcolor=MONOKAI_BACKGROUND
+                ),
+                control,
+            )
 
     for index, line in enumerate(syntax_lines):
         lineno = index + start_lineno
@@ -181,19 +224,32 @@ def highlight_lines_in_hunk(start_lineno, highlight_linenos, syntax_lines, blend
                 if style:
                     if style.bgcolor:
                         bgcolor_triplet = style.bgcolor.triplet
-                        cross_fade = .85
-                        new_bgcolour_triplet = blend_rgb_cached(blend_colour, bgcolor_triplet, cross_fade=cross_fade)
+                        cross_fade = 0.85
+                        new_bgcolour_triplet = blend_rgb_cached(
+                            blend_colour, bgcolor_triplet, cross_fade=cross_fade
+                        )
                         new_bgcolor = Color.from_triplet(new_bgcolour_triplet)
                     else:
                         new_bgcolor = None
 
                     if style.color and segment_number == 1:
-                        new_triplet = blend_rgb_cached(style.color.triplet, ColorTriplet(255, 255, 255))
+                        new_triplet = blend_rgb_cached(
+                            blend_rgb_cached(
+                                blend_colour, style.color.triplet, cross_fade=0.5
+                            ),
+                            ColorTriplet(255, 255, 255),
+                            cross_fade=0.4,
+                        )
                         new_color = Color.from_triplet(new_triplet)
                     else:
                         new_color = None
 
-                    updated_style = style + Style.from_color(color=new_color, bgcolor=new_bgcolor)
+                    overlay_style = Style.from_color(
+                        color=new_color, bgcolor=new_bgcolor
+                    )
+                    updated_style = style + overlay_style
+                    if segment_number == 1:
+                        updated_style += Style(italic=True)
 
                     new_line.append(Segment(text, updated_style, control))
                 else:
@@ -206,7 +262,13 @@ def highlight_lines_in_hunk(start_lineno, highlight_linenos, syntax_lines, blend
         pad = lines_to_pad_above.get(lineno, 0)
         # pad = 0
         for i in range(pad):
-            highlighted_lines.append([Segment("╲" * console.width, Style.from_color(color=MONOKAI_BACKGROUND))])
+            highlighted_lines.append(
+                [
+                    Segment(
+                        "╲" * console.width, Style.from_color(color=MONOKAI_BACKGROUND)
+                    )
+                ]
+            )
 
         highlighted_lines.append(new_line)
     return highlighted_lines
@@ -217,5 +279,5 @@ def blend_rgb_cached(colour1, colour2, cross_fade=0.85):
     return blend_rgb(colour1, colour2, cross_fade=cross_fade)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
