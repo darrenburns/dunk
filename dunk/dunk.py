@@ -212,6 +212,7 @@ def highlight_lines_in_hunk(
                 control,
             )
 
+    # Apply additional diff-related highlighting to lines
     for index, line in enumerate(syntax_lines):
         lineno = index + start_lineno
 
