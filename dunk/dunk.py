@@ -88,6 +88,8 @@ def main():
         source_code = "".join(source_reconstructed)
         lexer = Syntax.guess_lexer(patch.path)
 
+        # A newly added comment
+
         for hunk in patch:
             # Use difflib to examine differences between each link of the hunk
             # Target essentially means the additions/green text in the diff
@@ -99,19 +101,17 @@ def main():
             target_syntax = Syntax(target_code, lexer=lexer, line_range=target_line_range, line_numbers=True,
                                    indent_guides=True)
 
-            # Gather info on source which lines were added/removed, so we can highlight them
+            # Gather information on source which lines were added/removed, so we can highlight them
             source_removed_linenos = set()
             target_added_linenos = set()
             for line in hunk:
                 line = cast(Line, line)
                 if line.source_line_no and line.is_removed:
-                    rich.inspect(line)
                     source_removed_linenos.add(line.source_line_no)
                 elif line.target_line_no and line.is_added:
                     target_added_linenos.add(line.target_line_no)
                 elif line.is_context:
                     pass
-                    # rich.inspect(line)
 
             # For inline diffing
             # if you have a contiguous streak of removal lines, followed by a contiguous streak of addition lines,
@@ -134,6 +134,7 @@ def main():
                 SegmentLines(highlighted_target_lines, new_lines=True),
             )
 
+            console.print(hunk, style=Style.from_color(Color.from_triplet(ColorTriplet(12, 12, 12)), MONOKAI_BACKGROUND))
             console.print(table)
 
 
