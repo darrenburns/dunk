@@ -1,0 +1,168 @@
+<svg width="2640.4" height="714" viewBox="0 0 2640.4 714"
+     xmlns="http://www.w3.org/2000/svg">
+    <style>
+        @font-face {
+            font-family: "Fira Code";
+            src: local("FiraCode-Regular"),
+                 url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Regular.woff2") format("woff2"),
+                 url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Regular.woff") format("woff");
+            font-style: normal;
+            font-weight: 400;
+        }
+        @font-face {
+            font-family: "Fira Code";
+            src: local("FiraCode-Bold"),
+                 url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Bold.woff2") format("woff2"),
+                 url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Bold.woff") format("woff");
+            font-style: bold;
+            font-weight: 700;
+        }
+        span {
+            display: inline-block;
+            white-space: pre;
+            vertical-align: top;
+            font-size: 18px;
+            font-family:'Fira Code','Cascadia Code',Monaco,Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace;
+        }
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+        .blink {
+           animation: blinker 1s infinite;
+        }
+        @keyframes blinker {
+            from { opacity: 1.0; }
+            50% { opacity: 0.3; }
+            to { opacity: 1.0; }
+        }
+        #wrapper {
+            padding: 140px;
+            padding-top: 100px;
+        }
+        #terminal {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #0c0c0c;
+            border-radius: 14px;
+            outline: 1px solid #484848;
+        }
+        #terminal:after {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            content: '';
+            border-radius: 14px;
+            background: rgb(71,77,102);
+            background: linear-gradient(90deg, #804D69 0%, #4E4B89 100%);
+            transform: rotate(-4.5deg);
+            z-index: -1;
+        }
+        #terminal-header {
+            position: relative;
+            width: 100%;
+            background-color: #2e2e2e;
+            margin-bottom: 12px;
+            font-weight: bold;
+            border-radius: 14px 14px 0 0;
+            color: #f2f2f2;
+            font-size: 18px;
+            box-shadow: inset 0px -1px 0px 0px #4e4e4e,
+                        inset 0px -4px 8px 0px #1a1a1a;
+        }
+        #terminal-title-tab {
+            display: inline-block;
+            margin-top: 14px;
+            margin-left: 124px;
+            font-family: sans-serif;
+            padding: 14px 28px;
+            border-radius: 6px 6px 0 0;
+            background-color: #0c0c0c;
+            box-shadow: inset 0px 1px 0px 0px #4e4e4e,
+                        0px -4px 4px 0px #1e1e1e,
+                        inset 1px 0px 0px 0px #4e4e4e,
+                        inset -1px 0px 0px 0px #4e4e4e;
+        }
+        #terminal-traffic-lights {
+            position: absolute;
+            top: 24px;
+            left: 20px;
+        }
+        #terminal-body {
+            line-height: 22px;
+            padding: 14px;
+        }
+        .r1 {color: #f2f2f2; text-decoration-color: #f2f2f2;background-color: #0c0c0c;}
+.r2 {color: #45483d; text-decoration-color: #45483d;background-color: #0c0c0c;}
+.r3 {font-weight: bold;color: #f2f2f2; text-decoration-color: #f2f2f2;;background-color: #0c0c0c;}
+.r4 {color: #0dbc79; text-decoration-color: #0dbc79; font-weight: bold;background-color: #0c0c0c;}
+.r5 {color: #0dbc79; text-decoration-color: #0dbc79;background-color: #0c0c0c;}
+.r6 {color: #cd3131; text-decoration-color: #cd3131; font-weight: bold;background-color: #0c0c0c;}
+.r7 {color: #cd3131; text-decoration-color: #cd3131;background-color: #0c0c0c;}
+.r8 {color: #272822; text-decoration-color: #272822; background-color: #0d0f0b}
+.r9 {color: #7f7f7f; text-decoration-color: #7f7f7f; background-color: #0d0f0b;color: #f2f2f2; text-decoration-color: #f2f2f2;}
+.r10 {color: #6c1e1e; text-decoration-color: #6c1e1e; background-color: #0d0f0b; font-weight: bold}
+.r11 {color: #6c1e1e; text-decoration-color: #6c1e1e; background-color: #0d0f0b}
+.r12 {color: #0c6442; text-decoration-color: #0c6442; background-color: #0d0f0b}
+.r13 {color: #0c6442; text-decoration-color: #0c6442; background-color: #0d0f0b; font-weight: bold}
+.r14 {color: #7f7f7f; text-decoration-color: #7f7f7f; background-color: #0d0f0b; font-weight: bold;color: #f2f2f2; text-decoration-color: #f2f2f2;}
+.r15 {color: #e3e3dd; text-decoration-color: #e3e3dd; background-color: #272822; font-weight: bold}
+.r16 {color: #656660; text-decoration-color: #656660; background-color: #272822}
+.r17 {color: #66d9ef; text-decoration-color: #66d9ef; background-color: #272822}
+.r18 {background-color: #272822;color: #f2f2f2; text-decoration-color: #f2f2f2;}
+.r19 {color: #f8f8f2; text-decoration-color: #f8f8f2; background-color: #272822}
+.r20 {color: #f92672; text-decoration-color: #f92672; background-color: #272822}
+.r21 {color: #e6db74; text-decoration-color: #e6db74; background-color: #272822}
+.r22 {color: #e3e3dd; text-decoration-color: #e3e3dd; background-color: #47221c; font-weight: bold}
+.r23 {color: #d08482; text-decoration-color: #d08482; background-color: #47221c}
+.r24 {color: #f8f8f2; text-decoration-color: #f8f8f2; background-color: #47221c}
+.r25 {color: #f92672; text-decoration-color: #f92672; background-color: #47221c}
+.r26 {color: #e6db74; text-decoration-color: #e6db74; background-color: #47221c}
+.r27 {color: #e5d0d0; text-decoration-color: #e5d0d0; background-color: #7d1814}
+.r28 {background-color: #47221c;color: #f2f2f2; text-decoration-color: #f2f2f2;}
+.r29 {color: #e3e3dd; text-decoration-color: #e3e3dd; background-color: #21481c; font-weight: bold}
+.r30 {color: #84d082; text-decoration-color: #84d082; background-color: #21481c}
+.r31 {color: #f8f8f2; text-decoration-color: #f8f8f2; background-color: #21481c}
+.r32 {color: #f92672; text-decoration-color: #f92672; background-color: #21481c}
+.r33 {color: #e6db74; text-decoration-color: #e6db74; background-color: #21481c}
+.r34 {color: #d0e5d0; text-decoration-color: #d0e5d0; background-color: #177e14}
+.r35 {background-color: #21481c;color: #f2f2f2; text-decoration-color: #f2f2f2;}
+    </style>
+    <foreignObject x="0" y="0" width="100%" height="100%">
+        <body xmlns="http://www.w3.org/1999/xhtml">
+            <div id="wrapper">
+                <div id="terminal">
+                    <div id='terminal-header'>
+                        <svg id="terminal-traffic-lights" width="90" height="21" viewBox="0 0 90 21" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="14" cy="8" r="8" fill="#ff6159"/>
+                            <circle cx="38" cy="8" r="8" fill="#ffbd2e"/>
+                            <circle cx="62" cy="8" r="8" fill="#28c941"/>
+                        </svg>
+                        <div id="terminal-title-tab">Diff output generated using Dunk</div>
+                    </div>
+                    <div id='terminal-body'>
+                        <div><span class="r1"></span><span class="r1">                                                                                                                                                                                                      </span></div>
+<div><span class="r2">▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁ </span><span class="r1">  </span><span class="r3">pyproject.toml</span><span class="r1"> </span><span class="r3">(</span><span class="r4">4</span><span class="r5"> additions</span><span class="r1">, </span><span class="r6">2</span><span class="r7"> removals</span><span class="r3">)</span><span class="r1"> </span><span class="r2"> ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁</span></div>
+<div><span class="r8">╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲ </span><span class="r9">@@ </span><span class="r10">-7</span><span class="r11">,</span><span class="r10">10</span><span class="r9"> </span><span class="r12">+</span><span class="r13">7</span><span class="r12">,</span><span class="r13">12</span><span class="r9"> @@ authors = </span><span class="r14">[</span><span class="r12">&quot;Darren Burns &lt;darrenb900@gmail.com&gt;&quot;</span><span class="r14">]</span><span class="r8"> ╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲</span></div>
+<div><span class="r15">  </span><span class="r16"> 7 </span><span class="r17">[tool.poetry.dependencies]</span><span class="r18">                                                                    </span><span class="r15">  </span><span class="r16"> 7 </span><span class="r17">[tool.poetry.dependencies]</span><span class="r18">                                                                    </span></div>
+<div><span class="r15">  </span><span class="r16"> 8 </span><span class="r19">python </span><span class="r20">=</span><span class="r19"> </span><span class="r21">&quot;^3.7&quot;</span><span class="r18">                                                                               </span><span class="r15">  </span><span class="r16"> 8 </span><span class="r19">python </span><span class="r20">=</span><span class="r19"> </span><span class="r21">&quot;^3.7&quot;</span><span class="r18">                                                                               </span></div>
+<div><span class="r15">  </span><span class="r16"> 9 </span><span class="r19">unidiff </span><span class="r20">=</span><span class="r19"> </span><span class="r21">&quot;^0.7.3&quot;</span><span class="r18">                                                                            </span><span class="r15">  </span><span class="r16"> 9 </span><span class="r19">unidiff </span><span class="r20">=</span><span class="r19"> </span><span class="r21">&quot;^0.7.3&quot;</span><span class="r18">                                                                            </span></div>
+<div><span class="r22">  </span><span class="r23">10 </span><span class="r24">rich </span><span class="r25">=</span><span class="r24"> </span><span class="r26">&quot;^12.0</span><span class="r27">.1</span><span class="r26">&quot;</span><span class="r28">                                                                              </span><span class="r29">  </span><span class="r30">10 </span><span class="r31">rich </span><span class="r32">=</span><span class="r31"> </span><span class="r33">&quot;^12.</span><span class="r34">1.</span><span class="r33">0&quot;</span><span class="r35">                                                                              </span></div>
+<div><span class="r15">  </span><span class="r16">11 </span><span class="r18">                                                                                              </span><span class="r15">  </span><span class="r16">11 </span><span class="r18">                                                                                              </span></div>
+<div><span class="r15">  </span><span class="r16">12 </span><span class="r17">[tool.poetry.dev-dependencies]</span><span class="r18">                                                                </span><span class="r15">  </span><span class="r16">12 </span><span class="r17">[tool.poetry.dev-dependencies]</span><span class="r18">                                                                </span></div>
+<div><span class="r22">  </span><span class="r23">13 </span><span class="r24">pytest </span><span class="r25">=</span><span class="r24"> </span><span class="r26">&quot;^5.2&quot;</span><span class="r28">                                                                               </span><span class="r29">  </span><span class="r30">13 </span><span class="r31">pytest </span><span class="r32">=</span><span class="r31"> </span><span class="r33">&quot;^7.1.1&quot;</span><span class="r35">                                                                             </span></div>
+<div><span class="r8">╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲</span><span class="r29">  </span><span class="r30">14 </span><span class="r31">black </span><span class="r32">=</span><span class="r31"> </span><span class="r33">&quot;^22.3.0&quot;</span><span class="r35">                                                                             </span></div>
+<div><span class="r8">╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲╲</span><span class="r29">  </span><span class="r30">15 </span><span class="r31">mypy </span><span class="r32">=</span><span class="r31"> </span><span class="r33">&quot;^0.942&quot;</span><span class="r35">                                                                               </span></div>
+<div><span class="r15">  </span><span class="r16">14 </span><span class="r18">                                                                                              </span><span class="r15">  </span><span class="r16">16 </span><span class="r18">                                                                                              </span></div>
+<div><span class="r15">  </span><span class="r16">15 </span><span class="r17">[tool.poetry.scripts]</span><span class="r18">                                                                         </span><span class="r15">  </span><span class="r16">17 </span><span class="r17">[tool.poetry.scripts]</span><span class="r18">                                                                         </span></div>
+<div><span class="r15">  </span><span class="r16">16 </span><span class="r19">dunk </span><span class="r20">=</span><span class="r19"> </span><span class="r21">&quot;dunk.dunk:main&quot;</span><span class="r18">                                                                       </span><span class="r15">  </span><span class="r16">18 </span><span class="r19">dunk </span><span class="r20">=</span><span class="r19"> </span><span class="r21">&quot;dunk.dunk:main&quot;</span><span class="r18">                                                                       </span></div>
+<div><span class="r2">▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔</span></div>
+<div><span class="r1"></span><span class="r1">                                                                                                                                                                                                      </span></div>
+                    </div>
+                </div>
+            </div>
+        </body>
+    </foreignObject>
+</svg>

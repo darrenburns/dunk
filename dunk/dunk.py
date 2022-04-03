@@ -1,8 +1,10 @@
 import functools
+import os
 import sys
+from collections import defaultdict
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Dict, List, cast, Iterable, Tuple, TypeVar, Optional, Set
+from typing import Dict, List, cast, Iterable, Tuple, TypeVar, Optional, Set, NamedTuple
 
 from rich.color import blend_rgb, Color
 from rich.color_triplet import ColorTriplet
@@ -15,7 +17,9 @@ from rich.text import Text
 from unidiff import PatchSet
 from unidiff.patch import PatchedFile, Hunk, Line
 
-console = Console(force_terminal=True)
+force_width, _ = os.get_terminal_size(2)
+
+console = Console(force_terminal=True, record=True, width=force_width)
 
 MONOKAI_LIGHT_ACCENT = Color.from_rgb(62, 64, 54)
 MONOKAI_BACKGROUND = Color.from_rgb(red=39, green=40, blue=34)
@@ -25,6 +29,13 @@ T = TypeVar("T")
 
 
 # TODO: Use rich pager here?
+
+
+class ContiguousStreak(NamedTuple):
+    """A single hunk can have multiple streaks of additions/removals of different length"""
+
+    streak_row_start: int
+    streak_length: int
 
 
 def loop_first(values: Iterable[T]) -> Iterable[Tuple[bool, T]]:
@@ -120,6 +131,7 @@ def main():
             )
             source_removed_linenos = set()
             target_added_linenos = set()
+
             context_linenos = []
             for line in hunk:
                 line = cast(Line, line)
@@ -164,30 +176,114 @@ def main():
             # other.
 
             # Map row numbers to lines
-            source_lines_by_row_number = {}
-            target_lines_by_row_number = {}
+            source_lines_by_row_index: Dict[int, Line] = {}
+            target_lines_by_row_index: Dict[int, Line] = {}
+
+            # We have to track the length of contiguous streaks of altered lines, as
+            # we can only provide intraline diffing to aligned streaks of identical
+            # length. If they are different lengths it is almost impossible to align
+            # the contiguous streaks without falling back to an expensive heuristic.
+            # If a source line and a target line map to equivalent ContiguousStreaks,
+            # then we can safely apply intraline highlighting to them.
+            source_row_to_contiguous_streak_length: Dict[int, ContiguousStreak] = {}
 
             accumulated_source_padding = 0
+
+            contiguous_streak_row_start = 0
+            contiguous_streak_length = 0
             for i, line in enumerate(hunk.source_lines()):
+                if line.is_removed:
+                    if contiguous_streak_length == 0:
+                        contiguous_streak_row_start = i
+                    contiguous_streak_length += 1
+                else:
+                    # We've reached the end of the streak, so we'll associate all the
+                    # lines in the streak with it for later lookup.
+                    for row_index in range(
+                        contiguous_streak_row_start,
+                        contiguous_streak_row_start + contiguous_streak_length,
+                    ):
+                        source_row_to_contiguous_streak_length[
+                            row_index
+                        ] = ContiguousStreak(
+                            streak_row_start=contiguous_streak_row_start,
+                            streak_length=contiguous_streak_length,
+                        )
+                    contiguous_streak_length = 0
+
                 lineno = hunk.source_start + i
                 this_line_padding = source_lineno_to_padding.get(lineno, 0)
                 accumulated_source_padding += this_line_padding
                 row_number = i + accumulated_source_padding
-                source_lines_by_row_number[row_number] = line
+                source_lines_by_row_index[row_number] = line
+
+            # TODO: Factor out this code into a function, we're doing the same thing
+            #  for all lines in both source and target hunks.
+            target_row_to_contiguous_streak_length: Dict[int, ContiguousStreak] = {}
 
             accumulated_target_padding = 0
+
+            target_streak_row_start = 0
+            target_streak_length = 0
             for i, line in enumerate(hunk.target_lines()):
+                if line.is_added:
+                    if target_streak_length == 0:
+                        target_streak_row_start = i
+                    target_streak_length += 1
+                else:
+                    for row_index in range(
+                        target_streak_row_start,
+                        target_streak_row_start + target_streak_length,
+                    ):
+                        target_row_to_contiguous_streak_length[
+                            row_index
+                        ] = ContiguousStreak(
+                            streak_row_start=target_streak_row_start,
+                            streak_length=target_streak_length,
+                        )
+                    target_streak_length = 0
+
                 lineno = hunk.target_start + i
                 this_line_padding = target_lineno_to_padding.get(lineno, 0)
                 accumulated_target_padding += this_line_padding
                 row_number = i + accumulated_target_padding
-                target_lines_by_row_number[row_number] = line
+                target_lines_by_row_index[row_number] = line
 
-            row_number_to_deletion_ranges = {}
-            row_number_to_insertion_ranges = {}
+
+            row_number_to_deletion_ranges = defaultdict(list)
+            row_number_to_insertion_ranges = defaultdict(list)
+
+            # console.print(source_lines_by_row_index)
+            # console.print(target_lines_by_row_index)
+
             # Collect intraline diff info for highlighting
-            for row_number, source_line in source_lines_by_row_number.items():
-                target_line = target_lines_by_row_number.get(row_number)
+            for row_number, source_line in source_lines_by_row_index.items():
+                source_streak = source_row_to_contiguous_streak_length.get(row_number)
+                target_streak = target_row_to_contiguous_streak_length.get(row_number)
+
+                # TODO: We need to work out the offsets to ensure that we look up
+                #  the correct target and source row streaks to compare. Will probably
+                #  need to append accumulated padding to row numbers
+
+                # print(padded_source_row, padded_target_row, source_line.value)
+                # if source_streak:
+                #     print(f"sourcestreak {row_number}", source_streak)
+                # if target_streak:
+                #     print(f"targetstreak {row_number}", target_streak)
+
+                intraline_enabled = (
+                    source_streak is not None
+                    and target_streak is not None
+                    and source_streak.streak_length == target_streak.streak_length
+                )
+                if not intraline_enabled:
+                    # print(f"skipping row {row_number}")
+                    continue
+
+                # print("intra enabled")
+
+                target_line = target_lines_by_row_index.get(row_number)
+
                 are_diffable = (
                     source_line
                     and target_line
@@ -200,15 +296,23 @@ def main():
                     )
                     opcodes = matcher.get_opcodes()
                     ratio = matcher.ratio()
-                    if ratio > 0.66:  # 0.66 seems to work well
+                    if ratio > 0.5:
                         for tag, i1, i2, j1, j2 in opcodes:
                             if tag == "delete":
-                                row_number_to_deletion_ranges[row_number] = (i1, i2)
+                                row_number_to_deletion_ranges[row_number].append(
+                                    (i1, i2)
+                                )
                             elif tag == "insert":
-                                row_number_to_insertion_ranges[row_number] = (j1, j2)
+                                row_number_to_insertion_ranges[row_number].append(
+                                    (j1, j2)
+                                )
                             elif tag == "replace":
-                                row_number_to_deletion_ranges[row_number] = (i1, i2)
-                                row_number_to_insertion_ranges[row_number] = (j1, j2)
+                                row_number_to_deletion_ranges[row_number].append(
+                                    (i1, i2)
+                                )
+                                row_number_to_insertion_ranges[row_number].append(
+                                    (j1, j2)
+                                )
 
             source_syntax_lines: List[List[Segment]] = console.render_lines(
                 source_syntax
@@ -221,7 +325,7 @@ def main():
                 source_syntax_lines,
                 ColorTriplet(255, 0, 0),
                 source_lineno_to_padding,
-                row_number_to_deletion_ranges,
+                dict(row_number_to_deletion_ranges),
                 gutter_size=len(str(source_lineno_max)) + 2,
             )
             highlighted_target_lines = highlight_and_align_lines_in_hunk(
@@ -230,7 +334,7 @@ def main():
                 target_syntax_lines,
                 ColorTriplet(0, 255, 0),
                 target_lineno_to_padding,
-                row_number_to_insertion_ranges,
+                dict(row_number_to_insertion_ranges),
                 gutter_size=len(str(len(target_lines) + 1)) + 2,
             )
 
@@ -254,28 +358,19 @@ def main():
         # TODO: File name indicator at bottom of file, if file diff is larger than terminal height.
         console.rule(style="#45483d", characters="▔")
 
+        # console.save_svg("dunk.svg", title="Diff output generated using Dunk")
+
 
 def highlight_and_align_lines_in_hunk(
     start_lineno: int,
     highlight_linenos: Set[Optional[int]],
-    syntax_hunk_lines,
+    syntax_hunk_lines: List[List[Segment]],
     blend_colour: ColorTriplet,
     lines_to_pad_above: Dict[int, int],
     highlight_ranges: Dict[int, Tuple[int, int]],
     gutter_size: int,
 ):
     highlighted_lines = []
-    # TODO: Don't think this really asd
-    # for line in syntax_hunk_lines:
-    #     if len(line) > 0:
-    #         text, style, control = line[0]
-    #         line[0] = Segment(
-    #             "▏",
-    #             Style.from_color(
-    #                 color=MONOKAI_LIGHT_ACCENT, bgcolor=MONOKAI_BACKGROUND
-    #             ),
-    #             control,
-    #         )
 
     # Apply diff-related highlighting to lines
     for index, line in enumerate(syntax_hunk_lines):
@@ -333,14 +428,11 @@ def highlight_and_align_lines_in_hunk(
                 ]
             )
 
-        # Finally, apply the intraline diff highlighting for this line if required
-        highlight_range = highlight_ranges.get(index)
-        if highlight_range:
-            start, end = highlight_range
+        # Finally, apply the intraline diff highlighting for this line if possible
+        if index in highlight_ranges:
             line_as_text = Text.assemble(
                 *((text, style) for text, style, control in new_line), end=""
             )
-
             intraline_bgcolor = Color.from_triplet(
                 blend_rgb_cached(
                     blend_colour, MONOKAI_BACKGROUND.triplet, cross_fade=0.6
@@ -353,11 +445,12 @@ def highlight_and_align_lines_in_hunk(
                     cross_fade=0.8,
                 )
             )
-            line_as_text.stylize(
-                Style.from_color(color=intraline_color, bgcolor=intraline_bgcolor),
-                start=start + gutter_size + 1,
-                end=end + gutter_size + 1,
-            )
+            for start, end in highlight_ranges.get(index):
+                line_as_text.stylize(
+                    Style.from_color(color=intraline_color, bgcolor=intraline_bgcolor),
+                    start=start + gutter_size + 1,
+                    end=end + gutter_size + 1,
+                )
             new_line = list(console.render(line_as_text))
         highlighted_lines.append(new_line)
     return highlighted_lines
@@ -369,4 +462,7 @@ def blend_rgb_cached(colour1, colour2, cross_fade=0.85):
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except BrokenPipeError:
+        pass
