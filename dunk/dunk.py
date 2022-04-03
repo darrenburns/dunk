@@ -24,6 +24,7 @@ console = Console(force_terminal=True, record=True, width=force_width)
 MONOKAI_LIGHT_ACCENT = Color.from_rgb(62, 64, 54)
 MONOKAI_BACKGROUND = Color.from_rgb(red=39, green=40, blue=34)
 DUNK_BACKGROUND = Color.from_rgb(red=26, green=30, blue=22)
+HATCHED_BACKGROUND = f"{MONOKAI_BACKGROUND.triplet.hex} on #0d0f0b"
 
 T = TypeVar("T")
 
@@ -55,8 +56,30 @@ def main():
     patch_set: List[PatchedFile] = PatchSet(diff)
 
     for is_first, patch in loop_first(patch_set):
+        if not is_first:
+            console.print()
+
+        additional_context = ""
+        if patch.is_added_file:
+            additional_context += "[green]file was added[/]"
+
+        console.rule(
+            f"  [b]{patch.path}[/] ([green]{patch.added} additions[/], "
+            f"[red]{patch.removed} removals[/]) {additional_context}",
+            style="#45483d",
+            characters="▁",
+        )
+
+        if patch.is_removed_file:
+            console.rule(characters="╲", style=HATCHED_BACKGROUND)
+            console.rule("[red]File was deleted", characters="╲", style=HATCHED_BACKGROUND)
+            console.rule(characters="╲", style=HATCHED_BACKGROUND)
+            continue
+
         if patch.is_binary_file:
-            # TODO - show something here
+            console.rule(characters="╲", style=HATCHED_BACKGROUND)
+            console.rule("[blue]File is binary", characters="╲", style=HATCHED_BACKGROUND)
+            console.rule(characters="╲", style=HATCHED_BACKGROUND)
             continue
 
         source_lineno = 1
@@ -85,20 +108,6 @@ def main():
 
                 source_lineno += 1
                 target_lineno += 1
-
-        additional_context = ""
-        if patch.is_added_file:
-            additional_context += "[green]file was added[/]"
-        elif patch.is_removed_file:
-            additional_context += "[red]file was deleted[/]"
-
-        console.print()
-        console.rule(
-            f"  [b]{patch.path}[/] ([green]{patch.added} additions[/], "
-            f"[red]{patch.removed} removals[/]) {additional_context}",
-            style="#45483d",
-            characters="▁",
-        )
 
         source_code = "".join(source_reconstructed)
         lexer = Syntax.guess_lexer(patch.path)

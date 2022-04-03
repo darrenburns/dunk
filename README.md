@@ -12,10 +12,18 @@ Pipe your `git diff` output into `dunk` to make it prettier!
 pip install dunk
 ```
 
-## Usage
+## Basic Usage
 
 Pipe the output of `git diff` into `dunk`:
 
 ```
 git diff | dunk
+```
+
+### Paging
+
+You can pipe output from `dunk` into a pager such as `less`:
+
+```
+git diff | dunk | less -R
 ```
