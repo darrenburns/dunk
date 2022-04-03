@@ -1,7 +1,8 @@
 import functools
 import sys
+from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Dict, List, cast, Iterable, Tuple, TypeVar
+from typing import Dict, List, cast, Iterable, Tuple, TypeVar, Optional, Set
 
 from rich.color import blend_rgb, Color
 from rich.color_triplet import ColorTriplet
@@ -10,14 +11,17 @@ from rich.segment import Segment, SegmentLines
 from rich.style import Style
 from rich.syntax import Syntax
 from rich.table import Table
+from rich.text import Text
 from unidiff import PatchSet
 from unidiff.patch import PatchedFile, Hunk, Line
 
 console = Console(force_terminal=True)
-T = TypeVar("T")
+
 MONOKAI_LIGHT_ACCENT = Color.from_rgb(62, 64, 54)
 MONOKAI_BACKGROUND = Color.from_rgb(red=39, green=40, blue=34)
 DUNK_BACKGROUND = Color.from_rgb(red=26, green=30, blue=22)
+
+T = TypeVar("T")
 
 
 # TODO: Use rich pager here?
@@ -79,7 +83,8 @@ def main():
 
         console.print()
         console.rule(
-            f"  [b]{patch.path}[/] ([green]{patch.added} additions[/], [red]{patch.removed} removals[/]) {additional_context}",
+            f"  [b]{patch.path}[/] ([green]{patch.added} additions[/], "
+            f"[red]{patch.removed} removals[/]) {additional_context}",
             style="#45483d",
             characters="▁",
         )
@@ -88,8 +93,8 @@ def main():
         lexer = Syntax.guess_lexer(patch.path)
 
         for is_first_hunk, hunk in loop_first(patch):
-            # Use difflib to examine differences between each link of the hunk
-            # Target essentially means the additions/green text in the diff
+            # Use difflib to examine differences between each line of the hunk
+            # Target essentially means the additions/green text in diff
             target_line_range = (
                 hunk.target_start,
                 hunk.target_length + hunk.target_start - 1,
@@ -113,8 +118,6 @@ def main():
                 line_numbers=True,
                 indent_guides=True,
             )
-
-            # Gather information on source which lines were added/removed, so we can highlight them
             source_removed_linenos = set()
             target_added_linenos = set()
             context_linenos = []
@@ -127,11 +130,13 @@ def main():
                 elif line.is_context:
                     context_linenos.append((line.source_line_no, line.target_line_no))
 
-            # To ensure that lines are aligned on the left and right in the split diff, we need to add some padding above the lines
-            # the amount of padding can be calculated by *changes* in the difference in offset between the source and target context
-            # line numbers. When a change occurs, we note how much the change was, and that's how much padding we need to add. If the
-            # change in source - target context line numbers is positive, we pad above the target. If it's negative, we pad above the
-            # source line.
+            # To ensure that lines are aligned on the left and right in the split
+            # diff, we need to add some padding above the lines the amount of padding
+            # can be calculated by *changes* in the difference in offset between the
+            # source and target context line numbers. When a change occurs, we note
+            # how much the change was, and that's how much padding we need to add. If
+            # the change in source - target context line numbers is positive,
+            # we pad above the target. If it's negative, we pad above the source line.
             source_lineno_to_padding = {}
             target_lineno_to_padding = {}
 
@@ -149,29 +154,84 @@ def main():
                     target_lineno_to_padding[target_lineno] = pad_amount
                 current_delta = delta
 
-            # For inline diffing
-            # if you have a contiguous streak of removal lines, followed by a contiguous streak of addition lines,
-            # you can collect the removals into a string, collect the additions into a string, and diff two strings,
-            # to find the locations in the line where things differ ABC
+            # Track which source and target lines are aligned and should be intraline
+            # diffed Work out row number of lines in each side of the diff. Row
+            # number is how far from the top of the syntax snippet we are. A line in
+            # the source and target with the same row numbers will be aligned in the
+            # diff (their line numbers in the source code may be different, though).
+            # There can be gaps in row numbers too, since sometimes we add padding
+            # above rows to ensure the source and target diffs are aligned with each
+            # other.
+
+            # Map row numbers to lines
+            source_lines_by_row_number = {}
+            target_lines_by_row_number = {}
+
+            accumulated_source_padding = 0
+            for i, line in enumerate(hunk.source_lines()):
+                lineno = hunk.source_start + i
+                this_line_padding = source_lineno_to_padding.get(lineno, 0)
+                accumulated_source_padding += this_line_padding
+                row_number = i + accumulated_source_padding
+                source_lines_by_row_number[row_number] = line
+
+            accumulated_target_padding = 0
+            for i, line in enumerate(hunk.target_lines()):
+                lineno = hunk.target_start + i
+                this_line_padding = target_lineno_to_padding.get(lineno, 0)
+                accumulated_target_padding += this_line_padding
+                row_number = i + accumulated_target_padding
+                target_lines_by_row_number[row_number] = line
+
+            row_number_to_deletion_ranges = {}
+            row_number_to_insertion_ranges = {}
+            # Collect intraline diff info for highlighting
+            for row_number, source_line in source_lines_by_row_number.items():
+                target_line = target_lines_by_row_number.get(row_number)
+                are_diffable = (
+                    source_line
+                    and target_line
+                    and source_line.is_removed
+                    and target_line.is_added
+                )
+                if target_line and are_diffable:
+                    matcher = SequenceMatcher(
+                        None, source_line.value, target_line.value
+                    )
+                    opcodes = matcher.get_opcodes()
+                    ratio = matcher.ratio()
+                    if ratio > 0.66:  # 0.66 seems to work well
+                        for tag, i1, i2, j1, j2 in opcodes:
+                            if tag == "delete":
+                                row_number_to_deletion_ranges[row_number] = (i1, i2)
+                            elif tag == "insert":
+                                row_number_to_insertion_ranges[row_number] = (j1, j2)
+                            elif tag == "replace":
+                                row_number_to_deletion_ranges[row_number] = (i1, i2)
+                                row_number_to_insertion_ranges[row_number] = (j1, j2)
 
             source_syntax_lines: List[List[Segment]] = console.render_lines(
                 source_syntax
             )
             target_syntax_lines = console.render_lines(target_syntax)
 
-            highlighted_source_lines = highlight_lines_in_hunk(
+            highlighted_source_lines = highlight_and_align_lines_in_hunk(
                 hunk.source_start,
                 source_removed_linenos,
                 source_syntax_lines,
                 ColorTriplet(255, 0, 0),
                 source_lineno_to_padding,
+                row_number_to_deletion_ranges,
+                gutter_size=len(str(source_lineno_max)) + 2,
             )
-            highlighted_target_lines = highlight_lines_in_hunk(
+            highlighted_target_lines = highlight_and_align_lines_in_hunk(
                 hunk.target_start,
                 target_added_linenos,
                 target_syntax_lines,
                 ColorTriplet(0, 255, 0),
                 target_lineno_to_padding,
+                row_number_to_insertion_ranges,
+                gutter_size=len(str(len(target_lines) + 1)) + 2,
             )
 
             table = Table.grid()
@@ -190,30 +250,35 @@ def main():
             )
             console.rule(hunk_header, characters="╲", style=hunk_header_style)
             console.print(table)
+
+        # TODO: File name indicator at bottom of file, if file diff is larger than terminal height.
         console.rule(style="#45483d", characters="▔")
 
 
-def highlight_lines_in_hunk(
-    start_lineno,
-    highlight_linenos,
-    syntax_lines,
-    blend_colour,
+def highlight_and_align_lines_in_hunk(
+    start_lineno: int,
+    highlight_linenos: Set[Optional[int]],
+    syntax_hunk_lines,
+    blend_colour: ColorTriplet,
     lines_to_pad_above: Dict[int, int],
+    highlight_ranges: Dict[int, Tuple[int, int]],
+    gutter_size: int,
 ):
     highlighted_lines = []
-    for line in syntax_lines:
-        if len(line) > 0:
-            text, style, control = line[0]
-            line[0] = Segment(
-                "▏",
-                Style.from_color(
-                    color=MONOKAI_LIGHT_ACCENT, bgcolor=MONOKAI_BACKGROUND
-                ),
-                control,
-            )
+    # TODO: Don't think this really asd
+    # for line in syntax_hunk_lines:
+    #     if len(line) > 0:
+    #         text, style, control = line[0]
+    #         line[0] = Segment(
+    #             "▏",
+    #             Style.from_color(
+    #                 color=MONOKAI_LIGHT_ACCENT, bgcolor=MONOKAI_BACKGROUND
+    #             ),
+    #             control,
+    #         )
 
-    # Apply additional diff-related highlighting to lines
-    for index, line in enumerate(syntax_lines):
+    # Apply diff-related highlighting to lines
+    for index, line in enumerate(syntax_hunk_lines):
         lineno = index + start_lineno
 
         if lineno in highlight_linenos:
@@ -222,6 +287,7 @@ def highlight_lines_in_hunk(
             for segment in line:
                 style: Style
                 text, style, control = segment
+
                 if style:
                     if style.bgcolor:
                         bgcolor_triplet = style.bgcolor.triplet
@@ -249,9 +315,6 @@ def highlight_lines_in_hunk(
                         color=new_color, bgcolor=new_bgcolor
                     )
                     updated_style = style + overlay_style
-                    if segment_number == 1:
-                        updated_style += Style(italic=True)
-
                     new_line.append(Segment(text, updated_style, control))
                 else:
                     new_line.append(segment)
@@ -261,7 +324,6 @@ def highlight_lines_in_hunk(
 
         # Pad above the line if required
         pad = lines_to_pad_above.get(lineno, 0)
-        # pad = 0
         for i in range(pad):
             highlighted_lines.append(
                 [
@@ -271,6 +333,32 @@ def highlight_lines_in_hunk(
                 ]
             )
 
+        # Finally, apply the intraline diff highlighting for this line if required
+        highlight_range = highlight_ranges.get(index)
+        if highlight_range:
+            start, end = highlight_range
+            line_as_text = Text.assemble(
+                *((text, style) for text, style, control in new_line), end=""
+            )
+
+            intraline_bgcolor = Color.from_triplet(
+                blend_rgb_cached(
+                    blend_colour, MONOKAI_BACKGROUND.triplet, cross_fade=0.6
+                )
+            )
+            intraline_color = Color.from_triplet(
+                blend_rgb_cached(
+                    intraline_bgcolor.triplet,
+                    Color.from_rgb(255, 255, 255).triplet,
+                    cross_fade=0.8,
+                )
+            )
+            line_as_text.stylize(
+                Style.from_color(color=intraline_color, bgcolor=intraline_bgcolor),
+                start=start + gutter_size + 1,
+                end=end + gutter_size + 1,
+            )
+            new_line = list(console.render(line_as_text))
         highlighted_lines.append(new_line)
     return highlighted_lines
 
