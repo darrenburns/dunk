@@ -35,8 +35,8 @@ jobs:
       - name: pytest
         run: poetry run pytest --verbose
 
-      - name: mypy
-        run: poetry run mypy --strict --color-output .
+    # - name: mypy
+    #   run: poetry run mypy --strict --color-output .
 
       - name: black
         run: poetry run black --check .
