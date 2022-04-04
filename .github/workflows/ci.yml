@@ -1,0 +1,30 @@
+name: CI
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v3
+        with:
+          python-version: "3.x"
+
+      - uses: snok/install-poetry@v1
+        with:
+          virtualenvs-in-project: false
+
+      - name: Install Dependencies
+        run: poetry install
+
+      - name: pytest
+        run: poetry run pytest --verbose
+
+      - name: mypy
+        run: poetry run mypy --strict --color-output .
+
+      - name: black
+        run: poetry run black --check .
