@@ -3,15 +3,23 @@ on: push
 
 jobs:
   test:
+    name: Test suite on Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      matrix:
+        python-version:
+          - '3.7'
+          - '3.8'
+          - '3.9'
+          - '3.10'
 
     steps:
       - uses: actions/checkout@v3
 
       - uses: actions/setup-python@v3
         with:
-          python-version: "3.x"
+          python-version: ${{ matrix.python-version }}
 
       - uses: snok/install-poetry@v1
         with:
