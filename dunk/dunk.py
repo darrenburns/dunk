@@ -31,6 +31,17 @@ T = TypeVar("T")
 
 # TODO: Use rich pager here?
 
+def find_git_root() -> Path:
+    cwd = Path.cwd()
+    if (cwd / ".git").exists():
+        return Path.cwd()
+
+    for directory in cwd.parents:
+        if (directory / ".git").exists():
+            return directory
+
+    return cwd
+
 
 class ContiguousStreak(NamedTuple):
     """A single hunk can have multiple streaks of additions/removals of different length"""
@@ -55,6 +66,8 @@ def main():
     diff = "".join(sys.stdin.readlines())
     patch_set: List[PatchedFile] = PatchSet(diff)
 
+    project_root = find_git_root()
+
     for is_first, patch in loop_first(patch_set):
         if not is_first:
             console.print()
@@ -72,20 +85,22 @@ def main():
 
         if patch.is_removed_file:
             console.rule(characters="╲", style=HATCHED_BACKGROUND)
-            console.rule("[red]File was deleted", characters="╲", style=HATCHED_BACKGROUND)
+            console.rule("[red]File was deleted", characters="╲",
+                         style=HATCHED_BACKGROUND)
             console.rule(characters="╲", style=HATCHED_BACKGROUND)
             continue
 
         if patch.is_binary_file:
             console.rule(characters="╲", style=HATCHED_BACKGROUND)
-            console.rule("[blue]File is binary", characters="╲", style=HATCHED_BACKGROUND)
+            console.rule("[blue]File is binary", characters="╲",
+                         style=HATCHED_BACKGROUND)
             console.rule(characters="╲", style=HATCHED_BACKGROUND)
             continue
 
         source_lineno = 1
         target_lineno = 1
 
-        target_code = Path(patch.path).read_text()
+        target_code = (project_root / patch.path).read_text()
         target_lines = target_code.splitlines(keepends=True)
         source_lineno_max = len(target_lines) - patch.added + patch.removed
 
@@ -258,7 +273,6 @@ def main():
                 row_number = i + accumulated_target_padding
                 target_lines_by_row_index[row_number] = line
 
-
             row_number_to_deletion_ranges = defaultdict(list)
             row_number_to_insertion_ranges = defaultdict(list)
 
@@ -364,7 +378,7 @@ def main():
             console.rule(hunk_header, characters="╲", style=hunk_header_style)
             console.print(table)
 
-        # TODO: File name indicator at bottom of file, if file diff is larger than terminal height.
+        # TODO: File name indicator at bottom of file, if diff is larger than terminal height.
         console.rule(style="#45483d", characters="▔")
 
         # console.save_svg("dunk.svg", title="Diff output generated using Dunk")
