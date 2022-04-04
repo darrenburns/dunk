@@ -6,30 +6,28 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Dict, List, cast, Iterable, Tuple, TypeVar, Optional, Set, NamedTuple
 
+from rich.align import Align
 from rich.color import blend_rgb, Color
 from rich.color_triplet import ColorTriplet
-from rich.console import Console
+from rich.console import Console, ConsoleOptions, RenderResult
+from rich.rule import Rule
 from rich.segment import Segment, SegmentLines
 from rich.style import Style
 from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
+from rich.theme import Theme
 from unidiff import PatchSet
-from unidiff.patch import PatchedFile, Hunk, Line
+from unidiff.patch import Hunk, Line
 
-force_width, _ = os.get_terminal_size(2)
-
-console = Console(force_terminal=True, record=True, width=force_width)
+from dunk.underline_bar import UnderlineBar
 
 MONOKAI_LIGHT_ACCENT = Color.from_rgb(62, 64, 54)
 MONOKAI_BACKGROUND = Color.from_rgb(red=39, green=40, blue=34)
 DUNK_BACKGROUND = Color.from_rgb(red=26, green=30, blue=22)
-HATCHED_BACKGROUND = f"{MONOKAI_BACKGROUND.triplet.hex} on #0d0f0b"
 
 T = TypeVar("T")
 
-
-# TODO: Use rich pager here?
 
 def find_git_root() -> Path:
     cwd = Path.cwd()
@@ -62,11 +60,81 @@ def loop_first(values: Iterable[T]) -> Iterable[Tuple[bool, T]]:
         yield False, value
 
 
-def main():
-    diff = "".join(sys.stdin.readlines())
-    patch_set: List[PatchedFile] = PatchSet(diff)
+class PatchSetHeader:
+    def __init__(
+        self,
+        file_modifications: int,
+        file_additions: int,
+        file_removals: int,
+        line_additions: int,
+        line_removals: int,
+    ):
+        self.file_modifications = file_modifications
+        self.file_additions = file_additions
+        self.file_removals = file_removals
+        self.line_additions = line_additions
+        self.line_removals = line_removals
+
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
+        yield Segment.line()
+        if self.file_modifications:
+            yield Align.center(f"[blue]{self.file_modifications} files changed")
+        if self.file_additions:
+            yield Align.center(
+                f"[green]{self.file_additions} files added (+{self.line_additions})")
+        if self.file_removals:
+            yield Align.center(
+                f"[red]{self.file_removals} files removed (+{self.line_removals})")
+
+        bar_width = console.width // 4
+        changed_lines = max(1, self.line_additions + self.line_removals)
+        added_lines_ratio = self.line_additions / changed_lines
+
+        yield Align.center(
+            UnderlineBar(
+                highlight_range=(0, added_lines_ratio * bar_width),
+                highlight_style="green",
+                background_style="red",
+                width=bar_width,
+            )
+        )
+        yield Segment.line()
+
+
+class RemovedFileBody:
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
+        yield Rule(characters="╲", style="hatched")
+        yield Rule("[red]File was deleted", characters="╲", style="hatched")
+        yield Rule(characters="╲", style="hatched")
+
+
+class BinaryFileBody:
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
+        yield Rule(characters="╲", style="hatched")
+        yield Rule("[blue]File is binary", characters="╲", style="hatched")
+        yield Rule(characters="╲", style="hatched")
+
+
+def main(console: Console):
+    input = sys.stdin.readlines()
+    diff = "".join(input)
+    patch_set: PatchSet = PatchSet(diff)
 
     project_root = find_git_root()
+
+    console.print(PatchSetHeader(
+        file_modifications=len(patch_set.modified_files),
+        file_additions=len(patch_set.added_files),
+        file_removals=len(patch_set.removed_files),
+        line_additions=patch_set.added,
+        line_removals=patch_set.removed,
+    ))
 
     for is_first, patch in loop_first(patch_set):
         if not is_first:
@@ -84,17 +152,11 @@ def main():
         )
 
         if patch.is_removed_file:
-            console.rule(characters="╲", style=HATCHED_BACKGROUND)
-            console.rule("[red]File was deleted", characters="╲",
-                         style=HATCHED_BACKGROUND)
-            console.rule(characters="╲", style=HATCHED_BACKGROUND)
+            console.print(RemovedFileBody())
             continue
 
         if patch.is_binary_file:
-            console.rule(characters="╲", style=HATCHED_BACKGROUND)
-            console.rule("[blue]File is binary", characters="╲",
-                         style=HATCHED_BACKGROUND)
-            console.rule(characters="╲", style=HATCHED_BACKGROUND)
+            console.print(BinaryFileBody())
             continue
 
         source_lineno = 1
@@ -106,6 +168,7 @@ def main():
 
         source_hunk_cache: Dict[int, Hunk] = {hunk.source_start: hunk for hunk in patch}
         source_reconstructed: List[str] = []
+
         while source_lineno <= source_lineno_max:
             hunk = source_hunk_cache.get(source_lineno)
             if hunk:
@@ -486,6 +549,16 @@ def blend_rgb_cached(colour1, colour2, cross_fade=0.85):
 
 if __name__ == "__main__":
     try:
-        main()
+        theme = Theme(
+            {
+                "hatched": f"{MONOKAI_BACKGROUND.triplet.hex} on #0d0f0b",
+                "warning": "magenta",
+                "danger": "bold red",
+            }
+        )
+        force_width, _ = os.get_terminal_size(2)
+        console = Console(force_terminal=True, record=True, width=force_width,
+                          theme=theme)
+        main(console)
     except BrokenPipeError:
         pass
