@@ -1,5 +1,6 @@
 import functools
 import os
+import subprocess
 import sys
 from collections import defaultdict
 from difflib import SequenceMatcher
@@ -32,15 +33,10 @@ T = TypeVar("T")
 # TODO: Use rich pager here?
 
 def find_git_root() -> Path:
-    cwd = Path.cwd()
-    if (cwd / ".git").exists():
-        return Path.cwd()
-
-    for directory in cwd.parents:
-        if (directory / ".git").exists():
-            return directory
-
-    return cwd
+    return Path(subprocess.check_output(
+        ['git', 'rev-parse', '--show-toplevel'],
+        stderr=subprocess.DEVNULL,
+    ).decode().strip())
 
 
 class ContiguousStreak(NamedTuple):
