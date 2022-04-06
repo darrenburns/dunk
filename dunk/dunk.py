@@ -18,15 +18,27 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 from unidiff import PatchSet
-from unidiff.patch import Hunk, Line
+from unidiff.patch import Hunk, Line, PatchedFile
 
+import dunk
 from dunk.underline_bar import UnderlineBar
 
 MONOKAI_LIGHT_ACCENT = Color.from_rgb(62, 64, 54)
 MONOKAI_BACKGROUND = Color.from_rgb(red=39, green=40, blue=34)
-DUNK_BACKGROUND = Color.from_rgb(red=26, green=30, blue=22)
+DUNK_BG_HEX = "#0d0f0b"
+MONOKAI_BG_HEX = MONOKAI_BACKGROUND.triplet.hex
 
 T = TypeVar("T")
+
+theme = Theme(
+    {
+        "hatched": f"{MONOKAI_BG_HEX} on {DUNK_BG_HEX}",
+    }
+)
+force_width, _ = os.get_terminal_size(2)
+console = Console(
+    force_terminal=True, width=force_width, theme=theme
+)
 
 
 def find_git_root() -> Path:
@@ -41,9 +53,9 @@ def find_git_root() -> Path:
     return cwd
 
 
+#
 class ContiguousStreak(NamedTuple):
     """A single hunk can have multiple streaks of additions/removals of different length"""
-
     streak_row_start: int
     streak_length: int
 
@@ -58,6 +70,13 @@ def loop_first(values: Iterable[T]) -> Iterable[Tuple[bool, T]]:
     yield True, value
     for value in iter_values:
         yield False, value
+
+
+def simple_pluralise(word: str, number: int) -> str:
+    if number == 1:
+        return word
+    else:
+        return word + "s"
 
 
 class PatchSetHeader:
@@ -78,28 +97,37 @@ class PatchSetHeader:
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
-        yield Segment.line()
         if self.file_modifications:
-            yield Align.center(f"[blue]{self.file_modifications} files changed")
+            yield Align.center(
+                f"[blue]{self.file_modifications} {simple_pluralise('file', self.file_modifications)} changed")
         if self.file_additions:
             yield Align.center(
-                f"[green]{self.file_additions} files added (+{self.line_additions})")
+                f"[green]{self.file_additions} {simple_pluralise('file', self.file_additions)} added")
         if self.file_removals:
             yield Align.center(
-                f"[red]{self.file_removals} files removed (+{self.line_removals})")
+                f"[red]{self.file_removals} {simple_pluralise('file', self.file_removals)} removed")
 
-        bar_width = console.width // 4
+        bar_width = console.width // 5
         changed_lines = max(1, self.line_additions + self.line_removals)
         added_lines_ratio = self.line_additions / changed_lines
 
-        yield Align.center(
+        line_changes_summary = Table.grid()
+        line_changes_summary.add_column()
+        line_changes_summary.add_column()
+        line_changes_summary.add_column()
+        line_changes_summary.add_row(
+            f"[bold green]+{self.line_additions} ",
             UnderlineBar(
                 highlight_range=(0, added_lines_ratio * bar_width),
                 highlight_style="green",
                 background_style="red",
                 width=bar_width,
-            )
+            ),
+            f" [bold red]-{self.line_removals}",
         )
+
+        bar_hpad = len(str(self.line_additions)) + len(str(self.line_removals)) + 4
+        yield Align.center(line_changes_summary, width=bar_width + bar_hpad)
         yield Segment.line()
 
 
@@ -108,46 +136,63 @@ class RemovedFileBody:
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
         yield Rule(characters="╲", style="hatched")
-        yield Rule("[red]File was deleted", characters="╲", style="hatched")
+        yield Rule("[red]File was removed", characters="╲", style="hatched")
         yield Rule(characters="╲", style="hatched")
+        yield Rule(style="dim red", characters="▔")
+
+
+def _patch_to_accent_colour(patched_file: PatchedFile) -> str:
+    if patched_file.is_added_file:
+        return "dim green"
+    elif patched_file.is_removed_file:
+        return "dim red"
+    elif patched_file.is_binary_file:
+        return "dim blue"
+    elif patched_file.is_modified_file:
+        return "#45483d"
+    else:
+        return "dim blue"
 
 
 class BinaryFileBody:
+    def __init__(self, accent_style: str) -> None:
+        self.accent_style = accent_style
+
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
         yield Rule(characters="╲", style="hatched")
         yield Rule("[blue]File is binary", characters="╲", style="hatched")
         yield Rule(characters="╲", style="hatched")
+        yield Rule(style=self.accent_style, characters="▔")
 
 
-def main(console: Console):
+def main():
     input = sys.stdin.readlines()
     diff = "".join(input)
     patch_set: PatchSet = PatchSet(diff)
 
     project_root = find_git_root()
 
-    console.print(PatchSetHeader(
-        file_modifications=len(patch_set.modified_files),
-        file_additions=len(patch_set.added_files),
-        file_removals=len(patch_set.removed_files),
-        line_additions=patch_set.added,
-        line_removals=patch_set.removed,
-    ))
+    console.print(
+        PatchSetHeader(
+            file_modifications=len(patch_set.modified_files),
+            file_additions=len(patch_set.added_files),
+            file_removals=len(patch_set.removed_files),
+            line_additions=patch_set.added,
+            line_removals=patch_set.removed,
+        )
+    )
 
     for is_first, patch in loop_first(patch_set):
-        if not is_first:
-            console.print()
-
-        additional_context = ""
         if patch.is_added_file:
-            additional_context += "[green]file was added[/]"
+            console.print(Align.center("[bold green]new file[/]"))
 
+        colour = _patch_to_accent_colour(patch)
         console.rule(
-            f"  [b]{patch.path}[/] ([green]{patch.added} additions[/], "
-            f"[red]{patch.removed} removals[/]) {additional_context}",
-            style="#45483d",
+            f"[b]{patch.path}[/] ([green]{patch.added} additions[/], "
+            f"[red]{patch.removed} removals[/])",
+            style=colour,
             characters="▁",
         )
 
@@ -156,7 +201,7 @@ def main(console: Console):
             continue
 
         if patch.is_binary_file:
-            console.print(BinaryFileBody())
+            console.print(BinaryFileBody(accent_style=colour))
             continue
 
         source_lineno = 1
@@ -442,9 +487,10 @@ def main(console: Console):
             console.print(table)
 
         # TODO: File name indicator at bottom of file, if diff is larger than terminal height.
-        console.rule(style="#45483d", characters="▔")
+        console.rule(style=colour, characters="▔")
 
-        # console.save_svg("dunk.svg", title="Diff output generated using Dunk")
+    console.print(Align.right(f"[blue]/[/][red]/[/][green]/[/] [dim]dunk {dunk.__version__}[/]   "))
+    # console.save_svg("dunk.svg", title="Diff output generated using Dunk")
 
 
 def highlight_and_align_lines_in_hunk(
@@ -549,16 +595,6 @@ def blend_rgb_cached(colour1, colour2, cross_fade=0.85):
 
 if __name__ == "__main__":
     try:
-        theme = Theme(
-            {
-                "hatched": f"{MONOKAI_BACKGROUND.triplet.hex} on #0d0f0b",
-                "warning": "magenta",
-                "danger": "bold red",
-            }
-        )
-        force_width, _ = os.get_terminal_size(2)
-        console = Console(force_terminal=True, record=True, width=force_width,
-                          theme=theme)
-        main(console)
+        main()
     except BrokenPipeError:
         pass

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dunk"
-version = "0.2.1a0"
+version = "0.3.0a0"
 description = ""
 authors = ["Darren Burns <darrenb900@gmail.com>"]
 
