@@ -36,9 +36,7 @@ theme = Theme(
     }
 )
 force_width, _ = os.get_terminal_size(2)
-console = Console(
-    force_terminal=True, width=force_width, theme=theme
-)
+console = Console(force_terminal=True, width=force_width, theme=theme)
 
 
 def find_git_root() -> Path:
@@ -56,6 +54,7 @@ def find_git_root() -> Path:
 #
 class ContiguousStreak(NamedTuple):
     """A single hunk can have multiple streaks of additions/removals of different length"""
+
     streak_row_start: int
     streak_length: int
 
@@ -99,13 +98,16 @@ class PatchSetHeader:
     ) -> RenderResult:
         if self.file_modifications:
             yield Align.center(
-                f"[blue]{self.file_modifications} {simple_pluralise('file', self.file_modifications)} changed")
+                f"[blue]{self.file_modifications} {simple_pluralise('file', self.file_modifications)} changed"
+            )
         if self.file_additions:
             yield Align.center(
-                f"[green]{self.file_additions} {simple_pluralise('file', self.file_additions)} added")
+                f"[green]{self.file_additions} {simple_pluralise('file', self.file_additions)} added"
+            )
         if self.file_removals:
             yield Align.center(
-                f"[red]{self.file_removals} {simple_pluralise('file', self.file_removals)} removed")
+                f"[red]{self.file_removals} {simple_pluralise('file', self.file_removals)} removed"
+            )
 
         bar_width = console.width // 5
         changed_lines = max(1, self.line_additions + self.line_removals)
@@ -384,9 +386,6 @@ def main():
             row_number_to_deletion_ranges = defaultdict(list)
             row_number_to_insertion_ranges = defaultdict(list)
 
-            # console.print(source_lines_by_row_index)
-            # console.print(target_lines_by_row_index)
-
             # Collect intraline diff info for highlighting
             for row_number, source_line in source_lines_by_row_index.items():
                 source_streak = source_row_to_contiguous_streak_length.get(row_number)
@@ -410,8 +409,6 @@ def main():
                 if not intraline_enabled:
                     # print(f"skipping row {row_number}")
                     continue
-
-                # print("intra enabled")
 
                 target_line = target_lines_by_row_index.get(row_number)
 
@@ -489,7 +486,11 @@ def main():
         # TODO: File name indicator at bottom of file, if diff is larger than terminal height.
         console.rule(style=colour, characters="▔")
 
-    console.print(Align.right(f"[blue]/[/][red]/[/][green]/[/] [dim]dunk {dunk.__version__}[/]   "))
+    console.print(
+        Align.right(
+            f"[blue]/[/][red]/[/][green]/[/] [dim]dunk {dunk.__version__}[/]   "
+        )
+    )
     # console.save_svg("dunk.svg", title="Diff output generated using Dunk")
 
 
@@ -589,11 +590,15 @@ def highlight_and_align_lines_in_hunk(
 
 
 @functools.lru_cache(maxsize=128)
-def blend_rgb_cached(colour1, colour2, cross_fade=0.85):
+def blend_rgb_cached(
+    colour1: ColorTriplet, colour2: ColorTriplet, cross_fade: float = 0.6
+) -> ColorTriplet:
     return blend_rgb(colour1, colour2, cross_fade=cross_fade)
 
 
 if __name__ == "__main__":
+    # TODO: Need to handle signal for broken pipe to prevent Python writing to stderr
+    #  when pipe breaks
     try:
         main()
     except BrokenPipeError:
