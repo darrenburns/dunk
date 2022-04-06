@@ -22,6 +22,11 @@ Pipe the output of `git diff` into `dunk`:
 git diff | dunk
 ```
 
+or add it to git as an alias:
+```
+git config --global alias.dunk '!git diff | dunk'
+```
+
 ### Paging
 
 You can pipe output from `dunk` into a pager such as `less`:
