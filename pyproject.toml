@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dunk"
-version = "0.3.0a0"
+version = "0.4.0a0"
 description = "Beautiful side-by-side diffs"
 authors = ["Darren Burns <darrenb900@gmail.com>"]
 

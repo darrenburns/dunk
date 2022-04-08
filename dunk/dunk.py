@@ -9,8 +9,7 @@ from typing import Dict, List, cast, Iterable, Tuple, TypeVar, Optional, Set, Na
 from rich.align import Align
 from rich.color import blend_rgb, Color
 from rich.color_triplet import ColorTriplet
-from rich.console import Console, ConsoleOptions, RenderResult
-from rich.rule import Rule
+from rich.console import Console
 from rich.segment import Segment, SegmentLines
 from rich.style import Style
 from rich.syntax import Syntax
@@ -21,9 +20,15 @@ from unidiff import PatchSet
 from unidiff.patch import Hunk, Line, PatchedFile
 
 import dunk
-from dunk.underline_bar import UnderlineBar
+from dunk.renderables import (
+    PatchSetHeader,
+    RemovedFileBody,
+    BinaryFileBody,
+    PatchedFileHeader,
+    OnlyRenamedFileBody,
+)
 
-MONOKAI_LIGHT_ACCENT = Color.from_rgb(62, 64, 54)
+MONOKAI_LIGHT_ACCENT = Color.from_rgb(62, 64, 54).triplet.hex
 MONOKAI_BACKGROUND = Color.from_rgb(red=39, green=40, blue=34)
 DUNK_BG_HEX = "#0d0f0b"
 MONOKAI_BG_HEX = MONOKAI_BACKGROUND.triplet.hex
@@ -33,6 +38,8 @@ T = TypeVar("T")
 theme = Theme(
     {
         "hatched": f"{MONOKAI_BG_HEX} on {DUNK_BG_HEX}",
+        "renamed": f"cyan",
+        "border": MONOKAI_LIGHT_ACCENT,
     }
 )
 force_width, _ = os.get_terminal_size(2)
@@ -71,104 +78,6 @@ def loop_first(values: Iterable[T]) -> Iterable[Tuple[bool, T]]:
         yield False, value
 
 
-def simple_pluralise(word: str, number: int) -> str:
-    if number == 1:
-        return word
-    else:
-        return word + "s"
-
-
-class PatchSetHeader:
-    def __init__(
-        self,
-        file_modifications: int,
-        file_additions: int,
-        file_removals: int,
-        line_additions: int,
-        line_removals: int,
-    ):
-        self.file_modifications = file_modifications
-        self.file_additions = file_additions
-        self.file_removals = file_removals
-        self.line_additions = line_additions
-        self.line_removals = line_removals
-
-    def __rich_console__(
-        self, console: Console, options: ConsoleOptions
-    ) -> RenderResult:
-        if self.file_modifications:
-            yield Align.center(
-                f"[blue]{self.file_modifications} {simple_pluralise('file', self.file_modifications)} changed"
-            )
-        if self.file_additions:
-            yield Align.center(
-                f"[green]{self.file_additions} {simple_pluralise('file', self.file_additions)} added"
-            )
-        if self.file_removals:
-            yield Align.center(
-                f"[red]{self.file_removals} {simple_pluralise('file', self.file_removals)} removed"
-            )
-
-        bar_width = console.width // 5
-        changed_lines = max(1, self.line_additions + self.line_removals)
-        added_lines_ratio = self.line_additions / changed_lines
-
-        line_changes_summary = Table.grid()
-        line_changes_summary.add_column()
-        line_changes_summary.add_column()
-        line_changes_summary.add_column()
-        line_changes_summary.add_row(
-            f"[bold green]+{self.line_additions} ",
-            UnderlineBar(
-                highlight_range=(0, added_lines_ratio * bar_width),
-                highlight_style="green",
-                background_style="red",
-                width=bar_width,
-            ),
-            f" [bold red]-{self.line_removals}",
-        )
-
-        bar_hpad = len(str(self.line_additions)) + len(str(self.line_removals)) + 4
-        yield Align.center(line_changes_summary, width=bar_width + bar_hpad)
-        yield Segment.line()
-
-
-class RemovedFileBody:
-    def __rich_console__(
-        self, console: Console, options: ConsoleOptions
-    ) -> RenderResult:
-        yield Rule(characters="╲", style="hatched")
-        yield Rule("[red]File was removed", characters="╲", style="hatched")
-        yield Rule(characters="╲", style="hatched")
-        yield Rule(style="dim red", characters="▔")
-
-
-def _patch_to_accent_colour(patched_file: PatchedFile) -> str:
-    if patched_file.is_added_file:
-        return "dim green"
-    elif patched_file.is_removed_file:
-        return "dim red"
-    elif patched_file.is_binary_file:
-        return "dim blue"
-    elif patched_file.is_modified_file:
-        return "#45483d"
-    else:
-        return "dim blue"
-
-
-class BinaryFileBody:
-    def __init__(self, accent_style: str) -> None:
-        self.accent_style = accent_style
-
-    def __rich_console__(
-        self, console: Console, options: ConsoleOptions
-    ) -> RenderResult:
-        yield Rule(characters="╲", style="hatched")
-        yield Rule("[blue]File is binary", characters="╲", style="hatched")
-        yield Rule(characters="╲", style="hatched")
-        yield Rule(style=self.accent_style, characters="▔")
-
-
 def main():
     input = sys.stdin.readlines()
     diff = "".join(input)
@@ -187,35 +96,31 @@ def main():
     )
 
     for is_first, patch in loop_first(patch_set):
-        if patch.is_added_file:
-            console.print(Align.center("[bold green]new file[/]"))
-
-        colour = _patch_to_accent_colour(patch)
-        console.rule(
-            f"[b]{patch.path}[/] ([green]{patch.added} additions[/], "
-            f"[red]{patch.removed} removals[/])",
-            style=colour,
-            characters="▁",
-        )
+        patch = cast(PatchedFile, patch)
+        console.print(PatchedFileHeader(patch))
 
         if patch.is_removed_file:
             console.print(RemovedFileBody())
             continue
 
+        # The file wasn't removed, so we can open it.
+        target_file = project_root / patch.path
+
         if patch.is_binary_file:
-            console.print(BinaryFileBody(accent_style=colour))
+            console.print(BinaryFileBody(size_in_bytes=target_file.stat().st_size))
             continue
+
+        if patch.is_rename and not patch.added and not patch.removed:
+            console.print(OnlyRenamedFileBody(patch))
 
         source_lineno = 1
         target_lineno = 1
 
-        target_code = (project_root / patch.path).read_text()
+        target_code = target_file.read_text()
         target_lines = target_code.splitlines(keepends=True)
         source_lineno_max = len(target_lines) - patch.added + patch.removed
 
-        source_hunk_cache: Dict[int, Hunk] = {
-            hunk.source_start: hunk for hunk in patch
-        }
+        source_hunk_cache: Dict[int, Hunk] = {hunk.source_start: hunk for hunk in patch}
         source_reconstructed: List[str] = []
 
         while source_lineno <= source_lineno_max:
@@ -486,7 +391,7 @@ def main():
             console.print(table)
 
         # TODO: File name indicator at bottom of file, if diff is larger than terminal height.
-        console.rule(style=colour, characters="▔")
+        console.rule(style="border", characters="▔")
 
     console.print(
         Align.right(
