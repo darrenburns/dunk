@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "dunk"
 version = "0.3.0a0"
-description = ""
+description = "Beautiful side-by-side diffs"
 authors = ["Darren Burns <darrenb900@gmail.com>"]
 
 [tool.poetry.dependencies]

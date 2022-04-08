@@ -174,7 +174,7 @@ def main():
     diff = "".join(input)
     patch_set: PatchSet = PatchSet(diff)
 
-    project_root = find_git_root()
+    project_root: Path = find_git_root()
 
     console.print(
         PatchSetHeader(
@@ -213,7 +213,9 @@ def main():
         target_lines = target_code.splitlines(keepends=True)
         source_lineno_max = len(target_lines) - patch.added + patch.removed
 
-        source_hunk_cache: Dict[int, Hunk] = {hunk.source_start: hunk for hunk in patch}
+        source_hunk_cache: Dict[int, Hunk] = {
+            hunk.source_start: hunk for hunk in patch
+        }
         source_reconstructed: List[str] = []
 
         while source_lineno <= source_lineno_max:
