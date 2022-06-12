@@ -503,10 +503,11 @@ def blend_rgb_cached(
     return blend_rgb(colour1, colour2, cross_fade=cross_fade)
 
 
-if __name__ == "__main__":
-    # TODO: Need to handle signal for broken pipe to prevent Python writing to stderr
-    #  when pipe breaks
+def main_wrapper():
     try:
         main()
     except BrokenPipeError:
         pass
+
+if __name__ == "__main__":
+    main_wrapper()
