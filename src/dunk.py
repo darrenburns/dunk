@@ -19,8 +19,8 @@ from rich.theme import Theme
 from unidiff import PatchSet
 from unidiff.patch import Hunk, Line, PatchedFile
 
-import dunk
-from dunk.renderables import (
+import src
+from src.renderables import (
     PatchSetHeader,
     RemovedFileBody,
     BinaryFileBody,
@@ -244,11 +244,11 @@ def main():
                         contiguous_streak_row_start,
                         contiguous_streak_row_start + contiguous_streak_length,
                     ):
-                        source_row_to_contiguous_streak_length[
-                            row_index
-                        ] = ContiguousStreak(
-                            streak_row_start=contiguous_streak_row_start,
-                            streak_length=contiguous_streak_length,
+                        source_row_to_contiguous_streak_length[row_index] = (
+                            ContiguousStreak(
+                                streak_row_start=contiguous_streak_row_start,
+                                streak_length=contiguous_streak_length,
+                            )
                         )
                     contiguous_streak_length = 0
 
@@ -276,11 +276,11 @@ def main():
                         target_streak_row_start,
                         target_streak_row_start + target_streak_length,
                     ):
-                        target_row_to_contiguous_streak_length[
-                            row_index
-                        ] = ContiguousStreak(
-                            streak_row_start=target_streak_row_start,
-                            streak_length=target_streak_length,
+                        target_row_to_contiguous_streak_length[row_index] = (
+                            ContiguousStreak(
+                                streak_row_start=target_streak_row_start,
+                                streak_length=target_streak_length,
+                            )
                         )
                     target_streak_length = 0
 
@@ -394,9 +394,7 @@ def main():
         console.rule(style="border", characters="▔")
 
     console.print(
-        Align.right(
-            f"[blue]/[/][red]/[/][green]/[/] [dim]dunk {dunk.__version__}[/]   "
-        )
+        Align.right(f"[blue]/[/][red]/[/][green]/[/] [dim]dunk {src.__version__}[/]   ")
     )
     # console.save_svg("dunk.svg", title="Diff output generated using Dunk")
 

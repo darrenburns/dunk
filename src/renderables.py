@@ -11,7 +11,7 @@ from rich.table import Table
 from rich.text import Text
 from unidiff import PatchedFile
 
-from dunk.underline_bar import UnderlineBar
+from src.underline_bar import UnderlineBar
 
 
 def simple_pluralise(word: str, number: int) -> str:
