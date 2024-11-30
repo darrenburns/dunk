@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.scripts]
-dunk = "src.dunk:main"
+dunk = "dunk.__main__:main"
 
 [project.urls]
 homepage = "https://github.com/darrenburns/dunk"

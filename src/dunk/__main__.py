@@ -1,5 +1,7 @@
+import argparse
 import functools
 import os
+import subprocess
 import sys
 from collections import defaultdict
 from difflib import SequenceMatcher
@@ -19,14 +21,14 @@ from rich.theme import Theme
 from unidiff import PatchSet
 from unidiff.patch import Hunk, Line, PatchedFile
 
-import src
-from src.renderables import (
+from dunk.renderables import (
     PatchSetHeader,
     RemovedFileBody,
     BinaryFileBody,
     PatchedFileHeader,
     OnlyRenamedFileBody,
 )
+from dunk import __version__
 
 MONOKAI_LIGHT_ACCENT = Color.from_rgb(62, 64, 54).triplet.hex
 MONOKAI_BACKGROUND = Color.from_rgb(red=39, green=40, blue=34)
@@ -38,7 +40,7 @@ T = TypeVar("T")
 theme = Theme(
     {
         "hatched": f"{MONOKAI_BG_HEX} on {DUNK_BG_HEX}",
-        "renamed": f"cyan",
+        "renamed": "cyan",
         "border": MONOKAI_LIGHT_ACCENT,
     }
 )
@@ -78,11 +80,55 @@ def loop_first(values: Iterable[T]) -> Iterable[Tuple[bool, T]]:
         yield False, value
 
 
-def main():
-    input = sys.stdin.readlines()
-    diff = "".join(input)
-    patch_set: PatchSet = PatchSet(diff)
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="A modern diff viewer with syntax highlighting and side-by-side view"
+    )
+    parser.add_argument(
+        "paths", nargs="*", help="Optional paths to show diff for specific files"
+    )
+    parser.add_argument("--cached", action="store_true", help="Show staged changes")
+    parser.add_argument(
+        "--color-only",
+        action="store_true",
+        help="Show only color-coded changes without side-by-side view",
+    )
+    return parser.parse_args()
 
+
+def get_git_diff(paths: Optional[List[str]] = None, cached: bool = False) -> str:
+    """Get the git diff output as a string."""
+    cmd = ["git", "diff", "--no-color"]
+    if cached:
+        cmd.append("--cached")
+    if paths:
+        cmd.extend(paths)
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 128:
+            print("Error: Not a git repository")
+        else:
+            print(f"Error running git diff: {e.stderr}")
+        sys.exit(1)
+
+
+def main():
+    args = parse_args()
+
+    # If we have input from stdin, use that
+    if not sys.stdin.isatty():
+        diff = "".join(sys.stdin.readlines())
+    else:
+        # Otherwise get diff from git
+        diff = get_git_diff(args.paths, args.cached)
+        if not diff:
+            print("No changes to display")
+            return
+
+    patch_set: PatchSet = PatchSet(diff)
     project_root: Path = find_git_root()
 
     console.print(
@@ -394,7 +440,7 @@ def main():
         console.rule(style="border", characters="▔")
 
     console.print(
-        Align.right(f"[blue]/[/][red]/[/][green]/[/] [dim]dunk {src.__version__}[/]   ")
+        Align.right(f"[blue]/[/][red]/[/][green]/[/] [dim]dunk {__version__}[/]   ")
     )
     # console.save_svg("dunk.svg", title="Diff output generated using Dunk")
 
@@ -502,9 +548,13 @@ def blend_rgb_cached(
 
 
 if __name__ == "__main__":
-    # TODO: Need to handle signal for broken pipe to prevent Python writing to stderr
-    #  when pipe breaks
     try:
         main()
     except BrokenPipeError:
-        pass
+        # Python flushes standard streams on exit; redirect remaining output
+        # to devnull to avoid another BrokenPipeError at shutdown
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(1)

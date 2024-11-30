@@ -11,7 +11,7 @@ from rich.table import Table
 from rich.text import Text
 from unidiff import PatchedFile
 
-from src.underline_bar import UnderlineBar
+from dunk.underline_bar import UnderlineBar
 
 
 def simple_pluralise(word: str, number: int) -> str:
@@ -104,7 +104,7 @@ class PatchedFileHeader:
                 f"[dim][s]{escape(Path(patch.source_file).name)}[/] → [/]"
             )
         elif patch.is_added_file:
-            self.path_prefix = f"[bold green]Added [/]"
+            self.path_prefix = "[bold green]Added [/]"
         else:
             self.path_prefix = ""
 
