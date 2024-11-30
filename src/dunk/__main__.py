@@ -29,6 +29,7 @@ from dunk.renderables import (
     OnlyRenamedFileBody,
 )
 from dunk import __version__
+from dunk.cli_args import CliArgs
 
 MONOKAI_LIGHT_ACCENT = Color.from_rgb(62, 64, 54).triplet.hex
 MONOKAI_BACKGROUND = Color.from_rgb(red=39, green=40, blue=34)
@@ -49,15 +50,14 @@ console = Console(force_terminal=True, width=force_width, theme=theme)
 
 
 def find_git_root() -> Path:
-    cwd = Path.cwd()
-    if (cwd / ".git").exists():
-        return Path.cwd()
-
-    for directory in cwd.parents:
-        if (directory / ".git").exists():
-            return directory
-
-    return cwd
+    return Path(
+        subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            stderr=subprocess.DEVNULL,
+        )
+        .decode()
+        .strip()
+    )
 
 
 #
@@ -80,39 +80,32 @@ def loop_first(values: Iterable[T]) -> Iterable[Tuple[bool, T]]:
         yield False, value
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args() -> CliArgs:
     parser = argparse.ArgumentParser(
         description="A modern diff viewer with syntax highlighting and side-by-side view"
     )
     parser.add_argument(
         "paths", nargs="*", help="Optional paths to show diff for specific files"
     )
-    parser.add_argument("--cached", action="store_true", help="Show staged changes")
+    parser.add_argument("--left-path", help="Left path for difftool mode")
+    parser.add_argument("--right-path", help="Right path for difftool mode")
     parser.add_argument(
-        "--color-only",
-        action="store_true",
-        help="Show only color-coded changes without side-by-side view",
+        "--base-path", action="store_true", help="Use base path for difftool mode"
     )
-    return parser.parse_args()
+    return CliArgs(**vars(parser.parse_args()))
 
 
-def get_git_diff(paths: Optional[List[str]] = None, cached: bool = False) -> str:
+def get_git_diff(args: CliArgs) -> str:
     """Get the git diff output as a string."""
-    cmd = ["git", "diff", "--no-color"]
-    if cached:
+    cmd = ["git", "diff", "--no-color", "--no-index"]
+    if args.base_path:
         cmd.append("--cached")
-    if paths:
-        cmd.extend(paths)
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         return result.stdout
     except subprocess.CalledProcessError as e:
-        if e.returncode == 128:
-            print("Error: Not a git repository")
-        else:
-            print(f"Error running git diff: {e.stderr}")
-        sys.exit(1)
+        raise e
 
 
 def main():
@@ -123,7 +116,7 @@ def main():
         diff = "".join(sys.stdin.readlines())
     else:
         # Otherwise get diff from git
-        diff = get_git_diff(args.paths, args.cached)
+        diff = get_git_diff(args)
         if not diff:
             print("No changes to display")
             return
