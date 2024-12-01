@@ -104,7 +104,7 @@ class PatchedFileHeader:
                 f"[dim][s]{escape(Path(patch.source_file).name)}[/] → [/]"
             )
         elif patch.is_added_file:
-            self.path_prefix = f"[bold green]Added [/]"
+            self.path_prefix = "[bold green]Added [/]"
         else:
             self.path_prefix = ""
 

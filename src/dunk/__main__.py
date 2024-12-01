@@ -1,5 +1,7 @@
+import argparse
 import functools
 import os
+import subprocess
 import sys
 from collections import defaultdict
 from difflib import SequenceMatcher
@@ -19,7 +21,6 @@ from rich.theme import Theme
 from unidiff import PatchSet
 from unidiff.patch import Hunk, Line, PatchedFile
 
-import dunk
 from dunk.renderables import (
     PatchSetHeader,
     RemovedFileBody,
@@ -27,6 +28,8 @@ from dunk.renderables import (
     PatchedFileHeader,
     OnlyRenamedFileBody,
 )
+from dunk import __version__
+from dunk.cli_args import CliArgs
 
 MONOKAI_LIGHT_ACCENT = Color.from_rgb(62, 64, 54).triplet.hex
 MONOKAI_BACKGROUND = Color.from_rgb(red=39, green=40, blue=34)
@@ -38,7 +41,7 @@ T = TypeVar("T")
 theme = Theme(
     {
         "hatched": f"{MONOKAI_BG_HEX} on {DUNK_BG_HEX}",
-        "renamed": f"cyan",
+        "renamed": "cyan",
         "border": MONOKAI_LIGHT_ACCENT,
     }
 )
@@ -47,15 +50,14 @@ console = Console(force_terminal=True, width=force_width, theme=theme)
 
 
 def find_git_root() -> Path:
-    cwd = Path.cwd()
-    if (cwd / ".git").exists():
-        return Path.cwd()
-
-    for directory in cwd.parents:
-        if (directory / ".git").exists():
-            return directory
-
-    return cwd
+    return Path(
+        subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            stderr=subprocess.DEVNULL,
+        )
+        .decode()
+        .strip()
+    )
 
 
 #
@@ -78,11 +80,48 @@ def loop_first(values: Iterable[T]) -> Iterable[Tuple[bool, T]]:
         yield False, value
 
 
-def main():
-    input = sys.stdin.readlines()
-    diff = "".join(input)
-    patch_set: PatchSet = PatchSet(diff)
+def parse_args() -> CliArgs:
+    parser = argparse.ArgumentParser(
+        description="A modern diff viewer with syntax highlighting and side-by-side view"
+    )
+    parser.add_argument(
+        "paths", nargs="*", help="Optional paths to show diff for specific files"
+    )
+    parser.add_argument("--left-path", help="Left path for difftool mode")
+    parser.add_argument("--right-path", help="Right path for difftool mode")
+    parser.add_argument(
+        "--base-path", action="store_true", help="Use base path for difftool mode"
+    )
+    return CliArgs(**vars(parser.parse_args()))
 
+
+def get_git_diff(args: CliArgs) -> str:
+    """Get the git diff output as a string."""
+    cmd = ["git", "diff", "--no-color", "--no-index"]
+    if args.base_path:
+        cmd.append("--cached")
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        raise e
+
+
+def main():
+    args = parse_args()
+
+    # If we have input from stdin, use that
+    if not sys.stdin.isatty():
+        diff = "".join(sys.stdin.readlines())
+    else:
+        # Otherwise get diff from git
+        diff = get_git_diff(args)
+        if not diff:
+            print("No changes to display")
+            return
+
+    patch_set: PatchSet = PatchSet(diff)
     project_root: Path = find_git_root()
 
     console.print(
@@ -244,11 +283,11 @@ def main():
                         contiguous_streak_row_start,
                         contiguous_streak_row_start + contiguous_streak_length,
                     ):
-                        source_row_to_contiguous_streak_length[
-                            row_index
-                        ] = ContiguousStreak(
-                            streak_row_start=contiguous_streak_row_start,
-                            streak_length=contiguous_streak_length,
+                        source_row_to_contiguous_streak_length[row_index] = (
+                            ContiguousStreak(
+                                streak_row_start=contiguous_streak_row_start,
+                                streak_length=contiguous_streak_length,
+                            )
                         )
                     contiguous_streak_length = 0
 
@@ -276,11 +315,11 @@ def main():
                         target_streak_row_start,
                         target_streak_row_start + target_streak_length,
                     ):
-                        target_row_to_contiguous_streak_length[
-                            row_index
-                        ] = ContiguousStreak(
-                            streak_row_start=target_streak_row_start,
-                            streak_length=target_streak_length,
+                        target_row_to_contiguous_streak_length[row_index] = (
+                            ContiguousStreak(
+                                streak_row_start=target_streak_row_start,
+                                streak_length=target_streak_length,
+                            )
                         )
                     target_streak_length = 0
 
@@ -394,9 +433,7 @@ def main():
         console.rule(style="border", characters="▔")
 
     console.print(
-        Align.right(
-            f"[blue]/[/][red]/[/][green]/[/] [dim]dunk {dunk.__version__}[/]   "
-        )
+        Align.right(f"[blue]/[/][red]/[/][green]/[/] [dim]dunk {__version__}[/]   ")
     )
     # console.save_svg("dunk.svg", title="Diff output generated using Dunk")
 
@@ -504,9 +541,13 @@ def blend_rgb_cached(
 
 
 if __name__ == "__main__":
-    # TODO: Need to handle signal for broken pipe to prevent Python writing to stderr
-    #  when pipe breaks
     try:
         main()
     except BrokenPipeError:
-        pass
+        # Python flushes standard streams on exit; redirect remaining output
+        # to devnull to avoid another BrokenPipeError at shutdown
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(1)
