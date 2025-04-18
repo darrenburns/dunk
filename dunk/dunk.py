@@ -79,6 +79,19 @@ def loop_first(values: Iterable[T]) -> Iterable[Tuple[bool, T]]:
 
 
 def main():
+    try:
+        _run_dunk()
+    except BrokenPipeError:
+        # Python flushes standard streams on exit; redirect remaining output
+        # to devnull to avoid another BrokenPipeError at shutdown
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(1)
+
+
+def _run_dunk():
     input = sys.stdin.readlines()
     diff = "".join(input)
     patch_set: PatchSet = PatchSet(diff)
@@ -244,11 +257,11 @@ def main():
                         contiguous_streak_row_start,
                         contiguous_streak_row_start + contiguous_streak_length,
                     ):
-                        source_row_to_contiguous_streak_length[
-                            row_index
-                        ] = ContiguousStreak(
-                            streak_row_start=contiguous_streak_row_start,
-                            streak_length=contiguous_streak_length,
+                        source_row_to_contiguous_streak_length[row_index] = (
+                            ContiguousStreak(
+                                streak_row_start=contiguous_streak_row_start,
+                                streak_length=contiguous_streak_length,
+                            )
                         )
                     contiguous_streak_length = 0
 
@@ -276,11 +289,11 @@ def main():
                         target_streak_row_start,
                         target_streak_row_start + target_streak_length,
                     ):
-                        target_row_to_contiguous_streak_length[
-                            row_index
-                        ] = ContiguousStreak(
-                            streak_row_start=target_streak_row_start,
-                            streak_length=target_streak_length,
+                        target_row_to_contiguous_streak_length[row_index] = (
+                            ContiguousStreak(
+                                streak_row_start=target_streak_row_start,
+                                streak_length=target_streak_length,
+                            )
                         )
                     target_streak_length = 0
 
@@ -504,9 +517,4 @@ def blend_rgb_cached(
 
 
 if __name__ == "__main__":
-    # TODO: Need to handle signal for broken pipe to prevent Python writing to stderr
-    #  when pipe breaks
-    try:
-        main()
-    except BrokenPipeError:
-        pass
+    main()
