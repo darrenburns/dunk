@@ -24,7 +24,8 @@ git diff | dunk
 
 or add it to git as an alias:
 ```
-git config --global alias.dunk '!git diff | dunk'
+git config --global alias.dunk '!a() { git diff $@ | dunk; } ; a'
+git dunk HEAD~1
 ```
 
 ### Paging
